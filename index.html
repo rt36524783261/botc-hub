@@ -2222,12 +2222,25 @@
                     continue;
                 }
 
-                const nomMatch = line.match(/提名[^：:]*[：:]\s*(\d+)號.*➔.*提名\s*(\d+)號/);
+                                const nomMatch = line.match(/提名[^：:]*[：:]\s*(\d+)號.*➔.*提名\s*(\d+)號/);
                 if (nomMatch) {
+                    // 先結算上一輪提名是否達成全票出局
+                    if (currentNomineeNum && parsedPlayers[currentNomineeNum] && !currentNominationFailed) {
+                        if (Array.isArray(currentNominationVoters)) {
+                            if (parsedPlayerCount > 0 && currentNominationVoters.length === parsedPlayerCount && currentNominationVoters.includes(currentNomineeNum)) {
+                                parsedPlayers[currentNomineeNum].unanimous = true;
+                            }
+                        } else if (parsedPlayerCount > 0 && currentNominationVotes === parsedPlayerCount) {
+                            parsedPlayers[currentNomineeNum].unanimous = true;
+                        }
+                    }
+
                     currentNominatorNum = normalizeNum(nomMatch[1]);
                     currentNomineeNum = normalizeNum(nomMatch[2]);
                     currentNominationVotes = 0;
-                    var currentNominationHasVoterList = false;
+                    var currentNominationVoters = null;
+                    var currentNominationFailed = false;
+
                     if (parsedPlayers[currentNominatorNum]) {
                         parsedPlayers[currentNominatorNum].noms++;
                         if (currentNominatorNum === currentNomineeNum) selfNominatedPlayersToday.add(currentNominatorNum);
@@ -2241,12 +2254,11 @@
                     continue;
                 }
 
-                // ✋ 優先計算實際舉手投票的玩家人數（包含被提名者自己，且投票人數等於本局總人數）
+                // ✋ 擷取該次提名的實際舉手投票玩家號碼（去重計算實際投票人數）
                 if (line.includes('✋') && currentNomineeNum && parsedPlayers[currentNomineeNum]) {
                     const voterNums = [...line.matchAll(/(\d+)號/g)].map(m => normalizeNum(m[1]));
-                    const uniqueVoters = new Set(voterNums);
-                    currentNominationHasVoterList = true;
-                    if (parsedPlayerCount > 0 && uniqueVoters.size === parsedPlayerCount && uniqueVoters.has(currentNomineeNum)) {
+                    currentNominationVoters = [...new Set(voterNums)];
+                    if (parsedPlayerCount > 0 && currentNominationVoters.length === parsedPlayerCount && currentNominationVoters.includes(currentNomineeNum) && !currentNominationFailed) {
                         parsedPlayers[currentNomineeNum].unanimous = true;
                     }
                     continue;
@@ -2260,12 +2272,17 @@
                     currentNominationVotes = votes;
                     if (votes > parsedPlayers[currentNomineeNum].maxVotes) parsedPlayers[currentNomineeNum].maxVotes = votes;
 
-                    // 若戰報未單獨列出 ✋ 投票名單，則以票數等於總人數作為備援判斷
-                    if (!currentNominationHasVoterList && parsedPlayerCount > 0 && votes === parsedPlayerCount) {
-                        parsedPlayers[currentNomineeNum].unanimous = true;
+                    // 判斷是否為未達標/流票
+                    currentNominationFailed = statusTag.includes('未達標') || statusTag.includes('未過半') || statusTag.includes('失敗') || statusTag.includes('流票') || statusTag.includes('不成立');
+                    const isQualified = (statusTag.includes('達標') || statusTag.includes('過半') || (threshold > 0 && votes >= threshold)) && !currentNominationFailed;
+
+                    // 若此行之前已經讀過 ✋ 名單，立即核對人數是否等於本局總人數
+                    if (!currentNominationFailed && Array.isArray(currentNominationVoters)) {
+                        if (parsedPlayerCount > 0 && currentNominationVoters.length === parsedPlayerCount && currentNominationVoters.includes(currentNomineeNum)) {
+                            parsedPlayers[currentNomineeNum].unanimous = true;
+                        }
                     }
 
-                    const isQualified = statusTag.includes('達標') || statusTag.includes('過半') || (threshold > 0 && votes >= threshold);
                     if (isQualified && votes > highestBlockVotesToday) {
                         highestBlockVotesToday = votes;
                         playersWhoStoodOnBlockToday.add(currentNomineeNum);
@@ -2273,8 +2290,20 @@
                     continue;
                 }
 
+                // 結算與處決行：先結算最後一輪提名，並處理處決狀態與第一滴血
                 if (line.includes('特殊處決：') || (line.includes('今日結算：') && line.includes('處決') && !line.includes('無人處決'))) {
-                    const execMatch = line.match(/(\d+)號(?:\(([^)]+)\))?(?:】)?(?:以\s*(\d+)\s*票)?(?:遭到處決|遭處決)/);
+                    if (currentNomineeNum && parsedPlayers[currentNomineeNum] && !currentNominationFailed) {
+                        if (Array.isArray(currentNominationVoters)) {
+                            if (parsedPlayerCount > 0 && currentNominationVoters.length === parsedPlayerCount && currentNominationVoters.includes(currentNomineeNum)) {
+                                parsedPlayers[currentNomineeNum].unanimous = true;
+                            }
+                        } else if (parsedPlayerCount > 0 && currentNominationVotes === parsedPlayerCount) {
+                            parsedPlayers[currentNomineeNum].unanimous = true;
+                        }
+                    }
+                    currentNomineeNum = null;
+
+                    const execMatch = line.match(/(\d+)號(?:\(([^)]+)\))?(?:】)?/);
                     if (execMatch) {
                         const execNum = normalizeNum(execMatch[1]);
                         playersExecutedToday.add(execNum);
@@ -2287,6 +2316,7 @@
                 }
             }
             settleDayBlockAndMartyr();
+
 
 
             let inEndgameSection = false;
