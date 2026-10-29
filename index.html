@@ -681,8 +681,8 @@
                                 <option value="命不該絕">命不該絕 (絕處逢生10次)</option>
                                 <option value="免死金牌">免死金牌 (絕處逢生30次)</option>
                                 <option value="閻王拒收">閻王拒收 (絕處逢生50次・傳奇)</option>
-                                <option value="全民公敵">全民公敵 (全票出局10次)</option>
-                                <option value="萬夫所指">萬夫所指 (全票出局20次)</option>
+                                <option value="眾望所歸">眾望所歸 (全票出局10次)</option>
+                                <option value="舉世皆敵">舉世皆敵 (全票出局20次)</option>
                                 <option value="小宇宙頭號戰犯">小宇宙頭號戰犯 (全票出局30次・傳奇)</option>
                                 <option value="出師未捷">出師未捷 (第一滴血10次)</option>
                                 <option value="祭天專用">祭天專用 (第一滴血30次)</option>
@@ -824,9 +824,9 @@
             '免死金牌': { type: 'milestone', cond: '絕處逢生達 30 次（上處決台後最終未被處決）', desc: '就算全鎮都想處決我，我也死不了。' },
             '閻王拒收': { type: 'legend', isLegend: true, cond: '絕處逢生達 50 次（上處決台後最終未被處決）', desc: '連死神都帶不走的男人/女人。' },
 
-            '全民公敵': { type: 'milestone', cond: '全票出局達 10 次（單次被提名獲得全場所有人票數）', desc: '大家團結起來投我的時候最整齊了。' },
-            '萬夫所指': { type: 'milestone', cond: '全票出局達 20 次（單次被提名獲得全場所有人票數）', desc: '吸引全場仇恨值的終極避雷針。' },
-            '小宇宙頭號戰犯': { type: 'legend', isLegend: true, cond: '全票出局達 30 次（單次被提名獲得全場所有人票數）', desc: '能讓所有人放下恩怨一致對外的傳奇人物。' },
+            '眾望所歸': { type: 'milestone', cond: '全票出局達 10 次（被提名時全場所有玩家含自己同時舉手投票）', desc: '大家團結起來投我的時候最整齊了。' },
+            '舉世皆敵': { type: 'milestone', cond: '全票出局達 20 次（被提名時全場所有玩家含自己同時舉手投票）', desc: '吸引全場仇恨值的終極避雷針。' },
+            '小宇宙頭號戰犯': { type: 'legend', isLegend: true, cond: '全票出局達 30 次（被提名時全場所有玩家含自己同時舉手投票）', desc: '能讓所有人放下恩怨一致對外的傳奇人物。' },
 
             '出師未捷': { type: 'milestone', cond: '第一滴血達 10 次（成為整局遊戲第一個死亡的玩家）', desc: '還沒開始表演就先領便當了。' },
             '祭天專用': { type: 'milestone', cond: '第一滴血達 30 次（成為整局遊戲第一個死亡的玩家）', desc: '開局不死一下，大家渾身不對勁。' },
@@ -1149,8 +1149,9 @@
             else if (s.narrowEscapes >= 10) pushTitle('命不該絕', 'milestone');
 
             if (s.unanimousExecutions >= 30) pushTitle('小宇宙頭號戰犯', 'legend');
-            else if (s.unanimousExecutions >= 20) pushTitle('萬夫所指', 'milestone');
-            else if (s.unanimousExecutions >= 10) pushTitle('全民公敵', 'milestone');
+            else if (s.unanimousExecutions >= 20) pushTitle('舉世皆敵', 'milestone');
+            else if (s.unanimousExecutions >= 10) pushTitle('眾望所歸', 'milestone');
+
 
             if (s.firstDeathCount >= 50) pushTitle('沒有人權', 'legend');
             else if (s.firstDeathCount >= 30) pushTitle('祭天專用', 'milestone');
@@ -2226,6 +2227,7 @@
                     currentNominatorNum = normalizeNum(nomMatch[1]);
                     currentNomineeNum = normalizeNum(nomMatch[2]);
                     currentNominationVotes = 0;
+                    var currentNominationHasVoterList = false;
                     if (parsedPlayers[currentNominatorNum]) {
                         parsedPlayers[currentNominatorNum].noms++;
                         if (currentNominatorNum === currentNomineeNum) selfNominatedPlayersToday.add(currentNominatorNum);
@@ -2239,6 +2241,17 @@
                     continue;
                 }
 
+                // ✋ 優先計算實際舉手投票的玩家人數（包含被提名者自己，且投票人數等於本局總人數）
+                if (line.includes('✋') && currentNomineeNum && parsedPlayers[currentNomineeNum]) {
+                    const voterNums = [...line.matchAll(/(\d+)號/g)].map(m => normalizeNum(m[1]));
+                    const uniqueVoters = new Set(voterNums);
+                    currentNominationHasVoterList = true;
+                    if (parsedPlayerCount > 0 && uniqueVoters.size === parsedPlayerCount && uniqueVoters.has(currentNomineeNum)) {
+                        parsedPlayers[currentNomineeNum].unanimous = true;
+                    }
+                    continue;
+                }
+
                 const voteMatch = line.match(/📊\s*結果：(\d+)\s*票(?:\s*\/\s*門檻\s*(\d+)\s*票)?\s*(?:【(.*?)】)?/);
                 if (voteMatch && currentNomineeNum && parsedPlayers[currentNomineeNum]) {
                     const votes = parseInt(voteMatch[1], 10);
@@ -2246,7 +2259,11 @@
                     const statusTag = voteMatch[3] || '';
                     currentNominationVotes = votes;
                     if (votes > parsedPlayers[currentNomineeNum].maxVotes) parsedPlayers[currentNomineeNum].maxVotes = votes;
-                    if (parsedPlayerCount > 0 && votes >= parsedPlayerCount) parsedPlayers[currentNomineeNum].unanimous = true;
+
+                    // 若戰報未單獨列出 ✋ 投票名單，則以票數等於總人數作為備援判斷
+                    if (!currentNominationHasVoterList && parsedPlayerCount > 0 && votes === parsedPlayerCount) {
+                        parsedPlayers[currentNomineeNum].unanimous = true;
+                    }
 
                     const isQualified = statusTag.includes('達標') || statusTag.includes('過半') || (threshold > 0 && votes >= threshold);
                     if (isQualified && votes > highestBlockVotesToday) {
@@ -2260,18 +2277,17 @@
                     const execMatch = line.match(/(\d+)號(?:\(([^)]+)\))?(?:】)?(?:以\s*(\d+)\s*票)?(?:遭到處決|遭處決)/);
                     if (execMatch) {
                         const execNum = normalizeNum(execMatch[1]);
-                        const execVotes = execMatch[3] ? parseInt(execMatch[3], 10) : currentNominationVotes;
                         playersExecutedToday.add(execNum);
                         if (parsedPlayers[execNum]) {
                             if (!parsedPlayers[execNum].diedDay) { parsedPlayers[execNum].diedDay = currentDay; parsedPlayers[execNum].days = currentDay; }
                             if (!firstDeathRecorded) { parsedPlayers[execNum].firstDeath = true; firstDeathRecorded = true; }
-                            if (parsedPlayerCount > 0 && execVotes >= parsedPlayerCount) parsedPlayers[execNum].unanimous = true;
                         }
                     }
                     continue;
                 }
             }
             settleDayBlockAndMartyr();
+
 
             let inEndgameSection = false;
             for (let rawLine of lines) {
