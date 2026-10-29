@@ -1317,7 +1317,7 @@
                         if (!s.roleStats[playingRole]) s.roleStats[playingRole] = { games: 0, wins: 0, align: 'good' };
                         s.roleStats[playingRole].games++;
                         if (isWin) s.roleStats[playingRole].wins++;
-                        const rAlign = (initType === 'minion' || initType === 'demon' || p.type === 'minion' || p.type === 'demon' || align === 'evil') ? 'evil' : 'good';
+                        const rAlign = (initType === 'minion' || initType === 'demon' || p.type === 'minion' || p.type === 'demon') ? 'evil' : 'good';
                         s.roleAlignMap[playingRole] = rAlign;
                         s.roleStats[playingRole].align = rAlign;
                     }
