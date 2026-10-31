@@ -915,18 +915,22 @@
     </div>
 
 
-    <script type="module">
-             import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-       
 
-        // 將 Firebase 模組掛載至全域供外部 app.js 使用
-        window.F_INIT = initializeApp;
-        window.F_AUTH = { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut };
-        window.F_DB = { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc };
+        // 1. 將所有 Firebase 指令直接掛載到全域，讓外部的 app.js 直接呼叫不報錯
+        Object.assign(window, {
+            initializeApp, getAuth, signInAnonymously, signInWithEmailAndPassword, signOut,
+            getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc
+        });
+
+        // 2. 載入混淆後的 app.js，並在載入完成瞬間自動觸發啟動！
+        const s = document.createElement('script');
+        s.src = './app.js';
+        s.onload = () => document.dispatchEvent(new Event('DOMContentLoaded'));
+        document.body.appendChild(s);
     </script>
-    <!-- 直接載入混淆好的檔案，HTML 零負擔！ -->
-    <script src="./app.js"></script>
 </body>
 </html>
